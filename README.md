@@ -5,10 +5,16 @@ A web application that transforms parts of uploaded images into exaggerated blac
 ## Features
 
 - **Image Upload**: Upload any image file (JPEG, PNG, etc.)
+- **Adaptive Sizing**: Dot size varies based on image brightness
+  - Brighter areas = larger squares/circles
+  - Darker areas = smaller, denser patterns
 - **Adjustable Parameters**:
-  - Dot Size: Control the size of halftone dots (2-12px)
+  - Min Dot Size: Smallest square size for dark areas (2-24px)
+  - Max Dot Size: Largest square size for bright areas (4-48px)
   - Contrast: Adjust the contrast of the effect (0.5-3.0)
   - Threshold: Set the threshold for black/white conversion (0-255)
+- **Inverted Backgrounds**: Each square has the opposite color of its circle
+- **Anti-aliased Circles**: Smooth, round circles with proper anti-aliasing
 - **Selective Application**: 
   - Apply the effect to the entire image
   - Select specific regions by clicking and dragging
@@ -20,12 +26,15 @@ A web application that transforms parts of uploaded images into exaggerated blac
 
 1. Open `index.html` in a web browser
 2. Click "Choose Image" to upload an image
-3. Adjust the dot size, contrast, and threshold sliders to your preference
-4. Either:
+3. Adjust the min/max dot size sliders to control size variation
+4. Adjust contrast and threshold sliders to your preference
+5. Either:
    - Click "Apply to Whole Image" to transform the entire image
    - Click and drag on the image to select a region, then click "Apply to Selection"
-5. Click "Reset Image" to restore the original
-6. Click "Download Result" to save your creation
+6. Click "Reset Image" to restore the original
+7. Click "Download Result" to save your creation
+
+**Tip**: Increase the difference between min and max sizes for more dramatic size variation!
 
 ## FM Screening Effect
 
@@ -43,13 +52,17 @@ FM (Frequency Modulated) screening is a halftone technique where:
 
 ## Technical Details
 
-The FM screening effect works by:
-1. Dividing the image into a grid based on dot size
-2. Sampling the brightness of each grid cell
-3. Converting to grayscale with adjustable contrast
-4. Creating circular dots with radius proportional to darkness
-5. Adding slight randomness for the FM effect
-6. Rendering in pure black and white for maximum contrast
+The adaptive FM screening effect works by:
+1. Analyzing local brightness at each pixel position
+2. Calculating adaptive cell size based on brightness (min to max range)
+3. Sampling a small area around each position for smooth transitions
+4. Converting to grayscale with adjustable contrast
+5. Creating circular dots with radius proportional to darkness
+6. Adding anti-aliasing for smooth, round circles
+7. Using inverted background colors (dark dots on light background, light dots on dark background)
+8. Adding slight randomness for the FM effect
+9. Applying 5% spacing between dots for a cleaner look
+10. Tracking processed pixels to ensure complete coverage
 
 No external dependencies required - pure vanilla JavaScript!
 

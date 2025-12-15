@@ -11,10 +11,12 @@ let selectionRect = null;
 const imageUpload = document.getElementById('imageUpload');
 const canvasElement = document.getElementById('canvas');
 const selectionOverlay = document.getElementById('selectionOverlay');
-const dotSizeSlider = document.getElementById('dotSize');
+const minDotSizeSlider = document.getElementById('minDotSize');
+const maxDotSizeSlider = document.getElementById('maxDotSize');
 const contrastSlider = document.getElementById('contrast');
 const thresholdSlider = document.getElementById('threshold');
-const dotSizeValue = document.getElementById('dotSizeValue');
+const minDotSizeValue = document.getElementById('minDotSizeValue');
+const maxDotSizeValue = document.getElementById('maxDotSizeValue');
 const contrastValue = document.getElementById('contrastValue');
 const thresholdValue = document.getElementById('thresholdValue');
 const applyWholeBtn = document.getElementById('applyWholeBtn');
@@ -35,7 +37,8 @@ function init() {
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('mouseleave', handleMouseUp);
     
-    dotSizeSlider.addEventListener('input', updateSliderValue);
+    minDotSizeSlider.addEventListener('input', updateSliderValue);
+    maxDotSizeSlider.addEventListener('input', updateSliderValue);
     contrastSlider.addEventListener('input', updateSliderValue);
     thresholdSlider.addEventListener('input', updateSliderValue);
     
@@ -165,13 +168,18 @@ function clearSelection() {
     updateButtonStates();
 }
 
-// FM Screening effect
+// FM Screening effect with aligned grid-based adaptive sizing
 function applyFMScreening(wholeImage) {
     if (!currentImageData) return;
     
-    const dotSize = parseInt(dotSizeSlider.value);
+    const minDotSize = parseInt(minDotSizeSlider.value);
+    const maxDotSize = parseInt(maxDotSizeSlider.value);
     const contrast = parseFloat(contrastSlider.value);
     const threshold = parseInt(thresholdSlider.value);
+    
+    // Ensure min is not greater than max
+    const baseSize = Math.min(minDotSize, maxDotSize);
+    const maxSize = Math.max(minDotSize, maxDotSize);
     
     // Get region to apply effect to
     let region;
@@ -190,84 +198,127 @@ function applyFMScreening(wholeImage) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Apply FM screening to the region
-    for (let y = Math.floor(region.y); y < Math.floor(region.y + region.height); y += dotSize) {
-        for (let x = Math.floor(region.x); x < Math.floor(region.x + region.width); x += dotSize) {
-            // Sample the center pixel of this dot area
-            const sampleX = Math.min(x + Math.floor(dotSize / 2), canvas.width - 1);
-            const sampleY = Math.min(y + Math.floor(dotSize / 2), canvas.height - 1);
-            const idx = (sampleY * canvas.width + sampleX) * 4;
-            
-            // Calculate grayscale value
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            
-            // Apply contrast adjustment
-            let adjustedGray = ((gray - 128) * contrast) + 128;
-            adjustedGray = Math.max(0, Math.min(255, adjustedGray));
-            
-            // Create FM screening pattern
-            const dotRadius = calculateDotRadius(adjustedGray, dotSize, threshold);
-            
-            // Add subtle random variation for FM effect (calculated once per dot, not per pixel)
-            const noiseAmount = (Math.random() - 0.5) * dotSize * 0.15;
-            const effectiveRadius = dotRadius + noiseAmount;
-            
-            // Apply 5% spacing between dots by reducing effective radius
-            const spacedRadius = effectiveRadius * 0.95;
-            
-            // Determine colors: if dot is dark (large), background is light, and vice versa
-            // Use the brightness to determine: darker areas = larger dots = black dots on white bg
-            const isDarkArea = adjustedGray < 128;
-            const dotColor = isDarkArea ? 0 : 255;
-            const bgColor = isDarkArea ? 255 : 0;
-            
-            // Calculate center of dot once
-            const centerX = x + dotSize / 2;
-            const centerY = y + dotSize / 2;
-            
-            // Fill the dot area with anti-aliasing
-            for (let dy = 0; dy < dotSize && y + dy < canvas.height; dy++) {
-                for (let dx = 0; dx < dotSize && x + dx < canvas.width; dx++) {
-                    const px = x + dx;
-                    const py = y + dy;
-                    
-                    if (px >= region.x && px < region.x + region.width &&
-                        py >= region.y && py < region.y + region.height) {
-                        
-                        // Calculate distance from center of dot
-                        const dist = Math.sqrt(
-                            Math.pow(px + 0.5 - centerX, 2) + 
-                            Math.pow(py + 0.5 - centerY, 2)
-                        );
-                        
-                        const pixelIdx = (py * canvas.width + px) * 4;
-                        
-                        // Anti-aliasing: smooth transition at edge
-                        const aaWidth = 0.8; // Width of anti-aliasing band
-                        const diff = spacedRadius - dist;
-                        
-                        let value;
-                        if (diff > aaWidth) {
-                            // Fully inside dot
-                            value = dotColor;
-                        } else if (diff < 0) {
-                            // Outside dot - background color
-                            value = bgColor;
-                        } else {
-                            // Anti-aliased edge - interpolate between dot and background
-                            const t = diff / aaWidth;
-                            value = Math.round(bgColor + (dotColor - bgColor) * t);
+    // Create grid to track occupied cells (using base size as unit)
+    const gridWidth = Math.ceil(canvas.width / baseSize);
+    const gridHeight = Math.ceil(canvas.height / baseSize);
+    const grid = new Uint8Array(gridWidth * gridHeight);
+    
+    // Calculate possible sizes (must be multiples of baseSize)
+    const possibleSizes = [];
+    for (let mult = 1; mult * baseSize <= maxSize; mult++) {
+        possibleSizes.push(mult * baseSize);
+    }
+    possibleSizes.sort((a, b) => b - a); // Process largest first
+    
+    // First pass: try to place larger squares based on brightness
+    for (let i = 0; i < possibleSizes.length - 1; i++) {
+        const dotSize = possibleSizes[i];
+        const cellsPerDot = dotSize / baseSize;
+        
+        // Scan grid aligned to dotSize
+        for (let gy = 0; gy < gridHeight; gy += cellsPerDot) {
+            for (let gx = 0; gx < gridWidth; gx += cellsPerDot) {
+                // Check if this grid area is already occupied
+                let occupied = false;
+                for (let dy = 0; dy < cellsPerDot && gy + dy < gridHeight; dy++) {
+                    for (let dx = 0; dx < cellsPerDot && gx + dx < gridWidth; dx++) {
+                        if (grid[(gy + dy) * gridWidth + (gx + dx)]) {
+                            occupied = true;
+                            break;
                         }
-                        
-                        data[pixelIdx] = value;
-                        data[pixelIdx + 1] = value;
-                        data[pixelIdx + 2] = value;
-                        data[pixelIdx + 3] = 255; // Alpha
+                    }
+                    if (occupied) break;
+                }
+                
+                if (occupied) continue;
+                
+                // Calculate pixel position
+                const x = gx * baseSize;
+                const y = gy * baseSize;
+                
+                // Check if within region
+                if (x >= region.x && y >= region.y &&
+                    x < region.x + region.width && y < region.y + region.height) {
+                    
+                    // Sample the area to get average brightness
+                    let sumGray = 0;
+                    let count = 0;
+                    
+                    for (let sy = 0; sy < dotSize && y + sy < canvas.height; sy += Math.max(1, Math.floor(dotSize / 4))) {
+                        for (let sx = 0; sx < dotSize && x + sx < canvas.width; sx += Math.max(1, Math.floor(dotSize / 4))) {
+                            const px = Math.min(x + sx, canvas.width - 1);
+                            const py = Math.min(y + sy, canvas.height - 1);
+                            const idx = (py * canvas.width + px) * 4;
+                            
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+                            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                            sumGray += gray;
+                            count++;
+                        }
+                    }
+                    
+                    const avgGray = sumGray / count;
+                    
+                    // Apply contrast adjustment
+                    let adjustedGray = ((avgGray - 128) * contrast) + 128;
+                    adjustedGray = Math.max(0, Math.min(255, adjustedGray));
+                    
+                    // Determine if this brightness level should use this dot size
+                    const brightness = adjustedGray / 255;
+                    const idealSize = baseSize + (maxSize - baseSize) * brightness;
+                    
+                    // Only place larger squares if brightness is appropriate
+                    if (idealSize >= dotSize * 0.8) {
+                        drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot, 
+                                        adjustedGray, threshold, region, gy, gx, gridHeight);
                     }
                 }
+            }
+        }
+    }
+    
+    // Second pass: fill all remaining gaps with base size squares
+    const baseSquareSize = baseSize;
+    for (let gy = 0; gy < gridHeight; gy++) {
+        for (let gx = 0; gx < gridWidth; gx++) {
+            // Skip if already occupied
+            if (grid[gy * gridWidth + gx]) continue;
+            
+            // Calculate pixel position
+            const x = gx * baseSize;
+            const y = gy * baseSize;
+            
+            // Check if within region
+            if (x >= region.x && y >= region.y &&
+                x < region.x + region.width && y < region.y + region.height) {
+                
+                // Sample the area
+                let sumGray = 0;
+                let count = 0;
+                
+                for (let sy = 0; sy < baseSquareSize && y + sy < canvas.height; sy++) {
+                    for (let sx = 0; sx < baseSquareSize && x + sx < canvas.width; sx++) {
+                        const px = Math.min(x + sx, canvas.width - 1);
+                        const py = Math.min(y + sy, canvas.height - 1);
+                        const idx = (py * canvas.width + px) * 4;
+                        
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                        sumGray += gray;
+                        count++;
+                    }
+                }
+                
+                const avgGray = sumGray / count;
+                let adjustedGray = ((avgGray - 128) * contrast) + 128;
+                adjustedGray = Math.max(0, Math.min(255, adjustedGray));
+                
+                drawSquareWithDot(data, grid, gridWidth, x, y, baseSquareSize, 1, 
+                                adjustedGray, threshold, region, gy, gx, gridHeight);
             }
         }
     }
@@ -277,6 +328,73 @@ function applyFMScreening(wholeImage) {
     currentImageData = imageData;
     
     clearSelection();
+}
+
+// Helper function to draw a square with a dot
+function drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot, 
+                           adjustedGray, threshold, region, gy, gx, gridHeight) {
+    // Mark grid cells as occupied
+    for (let dy = 0; dy < cellsPerDot && gy + dy < gridHeight; dy++) {
+        for (let dx = 0; dx < cellsPerDot && gx + dx < gridWidth; dx++) {
+            grid[(gy + dy) * gridWidth + (gx + dx)] = 1;
+        }
+    }
+    
+    // Create FM screening pattern
+    const dotRadius = calculateDotRadius(adjustedGray, dotSize, threshold);
+    
+    // Add subtle random variation
+    const noiseAmount = (Math.random() - 0.5) * dotSize * 0.15;
+    const effectiveRadius = dotRadius + noiseAmount;
+    const spacedRadius = effectiveRadius * 0.95;
+    
+    // Determine colors
+    const isDarkArea = adjustedGray < 128;
+    const dotColor = isDarkArea ? 0 : 255;
+    const bgColor = isDarkArea ? 255 : 0;
+    
+    // Calculate center of dot
+    const centerX = x + dotSize / 2;
+    const centerY = y + dotSize / 2;
+    
+    const canvas = document.getElementById('canvas');
+    
+    // Fill the dot area with anti-aliasing
+    for (let dy = 0; dy < dotSize && y + dy < canvas.height; dy++) {
+        for (let dx = 0; dx < dotSize && x + dx < canvas.width; dx++) {
+            const px = x + dx;
+            const py = y + dy;
+            
+            if (px >= region.x && px < region.x + region.width &&
+                py >= region.y && py < region.y + region.height) {
+                
+                const dist = Math.sqrt(
+                    Math.pow(px + 0.5 - centerX, 2) + 
+                    Math.pow(py + 0.5 - centerY, 2)
+                );
+                
+                const pixelIdx = (py * canvas.width + px) * 4;
+                
+                const aaWidth = 0.8;
+                const diff = spacedRadius - dist;
+                
+                let value;
+                if (diff > aaWidth) {
+                    value = dotColor;
+                } else if (diff < 0) {
+                    value = bgColor;
+                } else {
+                    const t = diff / aaWidth;
+                    value = Math.round(bgColor + (dotColor - bgColor) * t);
+                }
+                
+                data[pixelIdx] = value;
+                data[pixelIdx + 1] = value;
+                data[pixelIdx + 2] = value;
+                data[pixelIdx + 3] = 255;
+            }
+        }
+    }
 }
 
 function calculateDotRadius(gray, dotSize, threshold) {
@@ -324,4 +442,5 @@ function updateButtonStates() {
 
 // Initialize on page load
 init();
+
 
