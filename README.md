@@ -11,6 +11,7 @@ A web application that transforms parts of uploaded images into exaggerated blac
 - **Adjustable Parameters**:
   - Min Dot Size: Smallest square size for dark areas (2-24px)
   - Max Dot Size: Largest square size for bright areas (4-48px)
+  - Spacing: Control the gap between dots (0-50%, default 5%)
   - Contrast: Adjust the contrast of the effect (0.5-3.0)
   - Threshold: Set the threshold for black/white conversion (0-255)
 - **Inverted Backgrounds**: Each square has the opposite color of its circle
@@ -27,14 +28,18 @@ A web application that transforms parts of uploaded images into exaggerated blac
 1. Open `index.html` in a web browser
 2. Click "Choose Image" to upload an image
 3. Adjust the min/max dot size sliders to control size variation
-4. Adjust contrast and threshold sliders to your preference
-5. Either:
+4. Adjust spacing slider to control the gap between dots (0% = tight, 50% = very airy)
+5. Adjust contrast and threshold sliders to your preference
+6. Either:
    - Click "Apply to Whole Image" to transform the entire image
    - Click and drag on the image to select a region, then click "Apply to Selection"
-6. Click "Reset Image" to restore the original
-7. Click "Download Result" to save your creation
+7. Click "Reset Image" to restore the original
+8. Click "Download Result" to save your creation
 
-**Tip**: Increase the difference between min and max sizes for more dramatic size variation!
+**Tips**: 
+- Increase the difference between min and max sizes for more dramatic size variation!
+- Lower spacing (0-5%) for a denser, bolder effect
+- Higher spacing (20-50%) for a lighter, airier appearance
 
 ## FM Screening Effect
 
@@ -61,7 +66,7 @@ The adaptive FM screening effect works by:
 6. Adding anti-aliasing for smooth, round circles
 7. Using inverted background colors (dark dots on light background, light dots on dark background)
 8. Adding slight randomness for the FM effect
-9. Applying 5% spacing between dots for a cleaner look
+9. Applying configurable spacing (0-50%) between dots
 10. Two-pass algorithm: large squares in flat areas, base size fills gaps
 11. Tracking processed pixels to ensure complete coverage
 

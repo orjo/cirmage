@@ -1,5 +1,5 @@
 // Version
-const VERSION = "1.1.0";
+const VERSION = "1.2.1";
 
 // Global variables
 let canvas, ctx;
@@ -13,13 +13,16 @@ let selectionRect = null;
 // DOM elements
 const imageUpload = document.getElementById('imageUpload');
 const canvasElement = document.getElementById('canvas');
+const canvasContainer = document.querySelector('.canvas-container');
 const selectionOverlay = document.getElementById('selectionOverlay');
 const minDotSizeSlider = document.getElementById('minDotSize');
 const maxDotSizeSlider = document.getElementById('maxDotSize');
+const spacingSlider = document.getElementById('spacing');
 const contrastSlider = document.getElementById('contrast');
 const thresholdSlider = document.getElementById('threshold');
 const minDotSizeValue = document.getElementById('minDotSizeValue');
 const maxDotSizeValue = document.getElementById('maxDotSizeValue');
+const spacingValue = document.getElementById('spacingValue');
 const contrastValue = document.getElementById('contrastValue');
 const thresholdValue = document.getElementById('thresholdValue');
 const applyWholeBtn = document.getElementById('applyWholeBtn');
@@ -38,13 +41,15 @@ function init() {
     
     // Event listeners
     imageUpload.addEventListener('change', handleImageUpload);
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mousemove', handleMouseMove);
-    canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('mouseleave', handleMouseUp);
+    // Attach mousedown to canvas container so we can start selection anywhere
+    canvasContainer.addEventListener('mousedown', handleMouseDown);
+    // Use document-level listeners for move and up to track outside canvas
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
     
     minDotSizeSlider.addEventListener('input', updateSliderValue);
     maxDotSizeSlider.addEventListener('input', updateSliderValue);
+    spacingSlider.addEventListener('input', updateSliderValue);
     contrastSlider.addEventListener('input', updateSliderValue);
     thresholdSlider.addEventListener('input', updateSliderValue);
     
@@ -109,6 +114,7 @@ function handleMouseDown(e) {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
+    // Allow selection to start outside canvas bounds
     selectionStart.x = (e.clientX - rect.left) * scaleX;
     selectionStart.y = (e.clientY - rect.top) * scaleY;
     isSelecting = true;
@@ -121,6 +127,7 @@ function handleMouseMove(e) {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
+    // Allow selection to extend outside canvas bounds
     selectionEnd.x = (e.clientX - rect.left) * scaleX;
     selectionEnd.y = (e.clientY - rect.top) * scaleY;
     
@@ -132,13 +139,14 @@ function handleMouseUp(e) {
     
     isSelecting = false;
     
-    // Calculate selection rectangle
+    // Calculate selection rectangle (can be outside canvas bounds)
     const x = Math.min(selectionStart.x, selectionEnd.x);
     const y = Math.min(selectionStart.y, selectionEnd.y);
     const width = Math.abs(selectionEnd.x - selectionStart.x);
     const height = Math.abs(selectionEnd.y - selectionStart.y);
     
     if (width > 5 && height > 5) {
+        // Store the raw selection (may extend beyond canvas)
         selectionRect = { x, y, width, height };
         updateButtonStates();
     } else {
@@ -180,6 +188,7 @@ function applyFMScreening(wholeImage) {
     
     const minDotSize = parseInt(minDotSizeSlider.value);
     const maxDotSize = parseInt(maxDotSizeSlider.value);
+    const spacingPercent = parseInt(spacingSlider.value);
     const contrast = parseFloat(contrastSlider.value);
     const threshold = parseInt(thresholdSlider.value);
     
@@ -197,7 +206,18 @@ function applyFMScreening(wholeImage) {
             height: canvas.height
         };
     } else {
-        region = selectionRect;
+        // Clip selection to canvas bounds (selection may extend outside)
+        const x1 = Math.max(0, selectionRect.x);
+        const y1 = Math.max(0, selectionRect.y);
+        const x2 = Math.min(canvas.width, selectionRect.x + selectionRect.width);
+        const y2 = Math.min(canvas.height, selectionRect.y + selectionRect.height);
+        
+        region = {
+            x: x1,
+            y: y1,
+            width: x2 - x1,
+            height: y2 - y1
+        };
     }
     
     // Create a copy of current image data
@@ -291,7 +311,7 @@ function applyFMScreening(wholeImage) {
                     // Only place this size if it matches the ideal size for this complexity
                     if (idealSize >= dotSize * 0.75) {
                         drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot, 
-                                        adjustedGray, threshold, region, gy, gx, gridHeight);
+                                        adjustedGray, threshold, region, gy, gx, gridHeight, spacingPercent, baseSize);
                     }
                 }
             }
@@ -337,7 +357,7 @@ function applyFMScreening(wholeImage) {
                 adjustedGray = Math.max(0, Math.min(255, adjustedGray));
                 
                 drawSquareWithDot(data, grid, gridWidth, x, y, baseSquareSize, 1, 
-                                adjustedGray, threshold, region, gy, gx, gridHeight);
+                                adjustedGray, threshold, region, gy, gx, gridHeight, spacingPercent, baseSize);
             }
         }
     }
@@ -351,7 +371,7 @@ function applyFMScreening(wholeImage) {
 
 // Helper function to draw a square with a dot
 function drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot, 
-                           adjustedGray, threshold, region, gy, gx, gridHeight) {
+                           adjustedGray, threshold, region, gy, gx, gridHeight, spacingPercent, minDotSize) {
     // Mark grid cells as occupied
     for (let dy = 0; dy < cellsPerDot && gy + dy < gridHeight; dy++) {
         for (let dx = 0; dx < cellsPerDot && gx + dx < gridWidth; dx++) {
@@ -360,12 +380,13 @@ function drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot,
     }
     
     // Create FM screening pattern
-    const dotRadius = calculateDotRadius(adjustedGray, dotSize, threshold);
+    const dotRadius = calculateDotRadius(adjustedGray, dotSize, threshold, minDotSize);
     
     // Add subtle random variation
     const noiseAmount = (Math.random() - 0.5) * dotSize * 0.15;
     const effectiveRadius = dotRadius + noiseAmount;
-    const spacedRadius = effectiveRadius * 0.95;
+    // Apply spacing: convert percentage to multiplier (5% = 0.95, 10% = 0.90, etc.)
+    const spacedRadius = effectiveRadius * (1 - spacingPercent / 100);
     
     // Determine colors
     const isDarkArea = adjustedGray < 128;
@@ -416,16 +437,22 @@ function drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot,
     }
 }
 
-function calculateDotRadius(gray, dotSize, threshold) {
+function calculateDotRadius(gray, dotSize, threshold, minDotSize) {
     // Invert gray value (darker = larger dot)
     const inverted = 255 - gray;
     
     // Adjust based on threshold
     const adjusted = inverted > threshold ? inverted : inverted * 0.5;
     
-    // Calculate radius (0 to half the dot size)
-    const maxRadius = dotSize / 2;
-    return (adjusted / 255) * maxRadius;
+    // Calculate radius with constraints to ensure both dot and background are visible
+    // Minimum radius: 15% of square (ensures dot is always visible)
+    // Maximum radius: 42% of square (ensures background is always visible)
+    const minRadius = Math.max(dotSize * 0.15, minDotSize * 0.3);
+    const maxRadius = dotSize * 0.42;
+    
+    // Map adjusted value to the constrained radius range
+    const t = adjusted / 255;
+    return minRadius + (maxRadius - minRadius) * t;
 }
 
 // Reset to original image

@@ -2,6 +2,32 @@
 
 All notable changes to the FM Screening Image Transformer project will be documented in this file.
 
+## [1.2.1] - 2025-12-16
+
+### Fixed
+- **Dot size constraints**: Both dots and backgrounds now respect min/max size settings
+  - Minimum dot radius: 15% of square size (ensures dots are always visible)
+  - Maximum dot radius: 42% of square size (ensures backgrounds are always visible)
+  - Fixes issue where very dark areas had invisible white backgrounds
+  - Fixes issue where very light areas had invisible dots
+
+## [1.2.0] - 2025-12-16
+
+### Added
+- **Spacing slider**: New control for adjusting spacing between dots
+  - Range: 0% to 50%
+  - Default: 5%
+  - Allows for very tight packing (0%) or very airy effects (50%)
+  - Independent control over the visual density of the pattern
+
+## [1.1.1] - 2025-12-16
+
+### Improved
+- **Free selection rectangle**: Can now start selection outside the canvas and drag in, or start inside and drag out
+- Selection overlay shows the full rectangle wherever you drag
+- Effect is automatically clipped to canvas bounds when applied
+- Document-level mouse tracking for smooth selection beyond canvas edges
+
 ## [1.1.0] - 2025-12-16
 
 ### Changed
