@@ -2,6 +2,18 @@
 
 All notable changes to the FM Screening Image Transformer project will be documented in this file.
 
+## [1.3.0] - 2025-12-16
+
+### Added
+- **Drag and drop image upload**: Drop images directly onto the upload area
+- Visual feedback when dragging images over the drop zone
+- Hint text showing drag and drop capability
+- File type validation for dropped files
+
+### Changed
+- Upload area now has a dashed border to indicate drop zone
+- Improved upload section styling with better visual feedback
+
 ## [1.2.2] - 2025-12-16
 
 ### Added

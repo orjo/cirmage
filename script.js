@@ -1,5 +1,5 @@
 // Version
-const VERSION = "1.2.2";
+const VERSION = "1.3.0";
 
 // Global variables
 let canvas, ctx;
@@ -12,6 +12,7 @@ let selectionRect = null;
 
 // DOM elements
 const imageUpload = document.getElementById('imageUpload');
+const dropZone = document.getElementById('dropZone');
 const canvasElement = document.getElementById('canvas');
 const canvasContainer = document.querySelector('.canvas-container');
 const selectionOverlay = document.getElementById('selectionOverlay');
@@ -42,6 +43,12 @@ function init() {
     
     // Event listeners
     imageUpload.addEventListener('change', handleImageUpload);
+    
+    // Drag and drop listeners
+    dropZone.addEventListener('dragover', handleDragOver);
+    dropZone.addEventListener('dragleave', handleDragLeave);
+    dropZone.addEventListener('drop', handleDrop);
+    
     // Attach mousedown to canvas container so we can start selection anywhere
     canvasContainer.addEventListener('mousedown', handleMouseDown);
     // Use document-level listeners for move and up to track outside canvas
@@ -76,6 +83,15 @@ function updateSliderValue(e) {
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
+    loadImageFile(file);
+}
+
+// Load image from file
+function loadImageFile(file) {
+    if (!file.type.startsWith('image/')) {
+        alert('Please drop an image file');
+        return;
+    }
     
     const reader = new FileReader();
     reader.onload = function(event) {
@@ -106,6 +122,30 @@ function handleImageUpload(e) {
         img.src = event.target.result;
     };
     reader.readAsDataURL(file);
+}
+
+// Drag and drop handlers
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        loadImageFile(files[0]);
+    }
 }
 
 // Mouse event handlers for selection
