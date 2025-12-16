@@ -1,5 +1,5 @@
 // Version
-const VERSION = "1.2.1";
+const VERSION = "1.2.2";
 
 // Global variables
 let canvas, ctx;
@@ -29,6 +29,7 @@ const applyWholeBtn = document.getElementById('applyWholeBtn');
 const applySelectionBtn = document.getElementById('applySelectionBtn');
 const clearSelectionBtn = document.getElementById('clearSelectionBtn');
 const resetBtn = document.getElementById('resetBtn');
+const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 
 // Initialize
@@ -57,6 +58,7 @@ function init() {
     applySelectionBtn.addEventListener('click', () => applyFMScreening(false));
     clearSelectionBtn.addEventListener('click', clearSelection);
     resetBtn.addEventListener('click', resetImage);
+    resetSettingsBtn.addEventListener('click', resetSettings);
     downloadBtn.addEventListener('click', downloadImage);
     
     // Disable buttons initially
@@ -462,6 +464,23 @@ function resetImage() {
     ctx.putImageData(originalImage, 0, 0);
     currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     clearSelection();
+}
+
+// Reset all settings to default values
+function resetSettings() {
+    // Default values
+    minDotSizeSlider.value = 4;
+    maxDotSizeSlider.value = 24;
+    spacingSlider.value = 5;
+    contrastSlider.value = 1.5;
+    thresholdSlider.value = 128;
+    
+    // Update displayed values
+    minDotSizeValue.textContent = 4;
+    maxDotSizeValue.textContent = 24;
+    spacingValue.textContent = 5;
+    contrastValue.textContent = 1.5;
+    thresholdValue.textContent = 128;
 }
 
 // Download image

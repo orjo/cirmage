@@ -2,6 +2,16 @@
 
 All notable changes to the FM Screening Image Transformer project will be documented in this file.
 
+## [1.2.2] - 2025-12-16
+
+### Added
+- **Reset Settings button**: Quickly restore all sliders to their default values
+  - Min Dot Size: 4px
+  - Max Dot Size: 24px
+  - Spacing: 5%
+  - Contrast: 1.5
+  - Threshold: 128
+
 ## [1.2.1] - 2025-12-16
 
 ### Fixed
