@@ -5,9 +5,9 @@ A web application that transforms parts of uploaded images into exaggerated blac
 ## Features
 
 - **Image Upload**: Upload any image file (JPEG, PNG, etc.)
-- **Adaptive Sizing**: Dot size varies based on image brightness
-  - Brighter areas = larger squares/circles
-  - Darker areas = smaller, denser patterns
+- **Adaptive Sizing**: Dot size varies based on image complexity
+  - Flat, uniform areas = larger squares/circles
+  - Detailed, complex areas = smaller, denser patterns
 - **Adjustable Parameters**:
   - Min Dot Size: Smallest square size for dark areas (2-24px)
   - Max Dot Size: Largest square size for bright areas (4-48px)
@@ -53,16 +53,19 @@ FM (Frequency Modulated) screening is a halftone technique where:
 ## Technical Details
 
 The adaptive FM screening effect works by:
-1. Analyzing local brightness at each pixel position
-2. Calculating adaptive cell size based on brightness (min to max range)
-3. Sampling a small area around each position for smooth transitions
+1. Analyzing local complexity (variance) at each grid position
+2. Calculating adaptive cell size based on simplicity (low variance = large squares)
+3. Using standard deviation to measure detail vs flatness
 4. Converting to grayscale with adjustable contrast
 5. Creating circular dots with radius proportional to darkness
 6. Adding anti-aliasing for smooth, round circles
 7. Using inverted background colors (dark dots on light background, light dots on dark background)
 8. Adding slight randomness for the FM effect
 9. Applying 5% spacing between dots for a cleaner look
-10. Tracking processed pixels to ensure complete coverage
+10. Two-pass algorithm: large squares in flat areas, base size fills gaps
+11. Tracking processed pixels to ensure complete coverage
+
+The complexity-based algorithm creates dramatic size variation: solid color blocks get very large squares while detailed areas get tiny, dense dots.
 
 No external dependencies required - pure vanilla JavaScript!
 

@@ -1,3 +1,6 @@
+// Version
+const VERSION = "1.1.0";
+
 // Global variables
 let canvas, ctx;
 let originalImage = null;
@@ -29,6 +32,9 @@ const downloadBtn = document.getElementById('downloadBtn');
 function init() {
     canvas = canvasElement;
     ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
+    // Display version
+    document.getElementById('version').textContent = `v${VERSION}`;
     
     // Event listeners
     imageUpload.addEventListener('change', handleImageUpload);
@@ -210,7 +216,7 @@ function applyFMScreening(wholeImage) {
     }
     possibleSizes.sort((a, b) => b - a); // Process largest first
     
-    // First pass: try to place larger squares based on brightness
+    // First pass: try to place larger squares based on complexity (variance)
     for (let i = 0; i < possibleSizes.length - 1; i++) {
         const dotSize = possibleSizes[i];
         const cellsPerDot = dotSize / baseSize;
@@ -240,12 +246,14 @@ function applyFMScreening(wholeImage) {
                 if (x >= region.x && y >= region.y &&
                     x < region.x + region.width && y < region.y + region.height) {
                     
-                    // Sample the area to get average brightness
+                    // Sample the area to calculate variance (complexity)
                     let sumGray = 0;
+                    let sumSquared = 0;
                     let count = 0;
+                    const sampleStep = Math.max(1, Math.floor(dotSize / 6));
                     
-                    for (let sy = 0; sy < dotSize && y + sy < canvas.height; sy += Math.max(1, Math.floor(dotSize / 4))) {
-                        for (let sx = 0; sx < dotSize && x + sx < canvas.width; sx += Math.max(1, Math.floor(dotSize / 4))) {
+                    for (let sy = 0; sy < dotSize && y + sy < canvas.height; sy += sampleStep) {
+                        for (let sx = 0; sx < dotSize && x + sx < canvas.width; sx += sampleStep) {
                             const px = Math.min(x + sx, canvas.width - 1);
                             const py = Math.min(y + sy, canvas.height - 1);
                             const idx = (py * canvas.width + px) * 4;
@@ -255,22 +263,33 @@ function applyFMScreening(wholeImage) {
                             const b = data[idx + 2];
                             const gray = 0.299 * r + 0.587 * g + 0.114 * b;
                             sumGray += gray;
+                            sumSquared += gray * gray;
                             count++;
                         }
                     }
                     
                     const avgGray = sumGray / count;
                     
-                    // Apply contrast adjustment
+                    // Calculate variance (measure of complexity/detail)
+                    const variance = (sumSquared / count) - (avgGray * avgGray);
+                    const stdDev = Math.sqrt(Math.max(0, variance));
+                    
+                    // Normalize variance to 0-1 range (typical stdDev is 0-50 for varied areas)
+                    const complexity = Math.min(1, stdDev / 40);
+                    
+                    // Low complexity (flat areas) = large squares
+                    // High complexity (detailed areas) = small squares
+                    const simplicity = 1 - complexity;
+                    
+                    // Apply contrast adjustment to average gray
                     let adjustedGray = ((avgGray - 128) * contrast) + 128;
                     adjustedGray = Math.max(0, Math.min(255, adjustedGray));
                     
-                    // Determine if this brightness level should use this dot size
-                    const brightness = adjustedGray / 255;
-                    const idealSize = baseSize + (maxSize - baseSize) * brightness;
+                    // Calculate ideal size based on simplicity (flat areas get bigger)
+                    const idealSize = baseSize + (maxSize - baseSize) * Math.pow(simplicity, 0.7);
                     
-                    // Only place larger squares if brightness is appropriate
-                    if (idealSize >= dotSize * 0.8) {
+                    // Only place this size if it matches the ideal size for this complexity
+                    if (idealSize >= dotSize * 0.75) {
                         drawSquareWithDot(data, grid, gridWidth, x, y, dotSize, cellsPerDot, 
                                         adjustedGray, threshold, region, gy, gx, gridHeight);
                     }
